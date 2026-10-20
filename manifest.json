@@ -1,0 +1,9 @@
+{
+    "display_name": "Camera & Gallery Attach",
+    "loading_order": 20,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "author": "me",
+    "version": "1.0.0"
+}
