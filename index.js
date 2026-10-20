@@ -88,10 +88,13 @@
         overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#000;display:flex;flex-direction:column;';
         overlay.innerHTML = `
             <video playsinline muted style="flex:1;min-height:0;width:100%;object-fit:contain;background:#000;"></video>
-            <div style="display:flex;justify-content:space-around;align-items:center;padding:16px;background:#111;">
-                <button type="button" data-act="cancel" style="font-size:18px;padding:12px 18px;">Cancel</button>
-                <button type="button" data-act="snap" style="font-size:18px;padding:16px 28px;border-radius:50%;">&#9679;</button>
-                <button type="button" data-act="flip" style="font-size:18px;padding:12px 18px;">Flip</button>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:20px 28px calc(20px + env(safe-area-inset-bottom));background:#000;">
+                <button type="button" data-act="cancel" aria-label="Cancel"
+                    style="all:unset;box-sizing:border-box;width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,0.15);color:#fff;font-size:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;">&#10005;</button>
+                <button type="button" data-act="snap" aria-label="Take photo"
+                    style="all:unset;box-sizing:border-box;width:76px;height:76px;min-width:76px;min-height:76px;border-radius:50%;background:#fff;border:5px solid #000;box-shadow:0 0 0 4px #fff;cursor:pointer;"></button>
+                <button type="button" data-act="flip" aria-label="Flip camera"
+                    style="all:unset;box-sizing:border-box;width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,0.15);color:#fff;font-size:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;">&#8635;</button>
             </div>`;
         document.body.appendChild(overlay);
 
@@ -134,7 +137,16 @@
         gal.tabIndex = 0;
         gal.addEventListener('click', () => pickFile(false));
 
+        // Opens the phone's own camera app. Whether it keeps a copy is up to that app.
+        const nat = document.createElement('div');
+        nat.id = 'st_cam_attach_native';
+        nat.className = 'fa-solid fa-camera-retro interactable';
+        nat.title = 'Open the phone camera app';
+        nat.tabIndex = 0;
+        nat.addEventListener('click', () => pickFile(true));
+
         bar.appendChild(cam);
+        bar.appendChild(nat);
         bar.appendChild(gal);
     }
 
