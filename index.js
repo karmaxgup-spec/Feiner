@@ -1,18 +1,23 @@
-// st-camera-attach: one-tap camera + gallery buttons in the send bar.
-// The camera is an in-page live preview (getUserMedia). Photos go straight into
-// SillyTavern's attach flow and are never written to the phone's gallery.
+// st-camera-attach: clicking SillyTavern's built-in "Attach a file" opens an
+// in-page camera instead of the file picker. Photos go straight into the normal
+// attach flow and are never written to the phone's gallery.
+// No buttons are added to the UI. The camera screen has a "Files" link to get
+// the normal file picker back when you need it.
 (() => {
-    const CAM_ID = 'st_cam_attach_camera';
-    const GAL_ID = 'st_cam_attach_gallery';
     const OVERLAY_ID = 'st_cam_attach_overlay';
 
     let stream = null;
     let imageCapture = null;
     let facing = 'environment';
     let torchOn = false;
+    let bypass = false;
+
+    function getInput() {
+        return document.getElementById('file_form_input');
+    }
 
     function attachFile(file) {
-        const input = document.getElementById('file_form_input');
+        const input = getInput();
         if (!input) {
             toastr.error('Attach input (#file_form_input) not found');
             return;
@@ -21,6 +26,13 @@
         dt.items.add(file);
         input.files = dt.files;
         input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function openNormalPicker() {
+        const input = getInput();
+        if (!input) return;
+        bypass = true;
+        try { input.click(); } finally { bypass = false; }
     }
 
     function stopStream() {
@@ -97,12 +109,10 @@
     async function snap(video) {
         let blob = null;
 
-        // Full-resolution still if the browser supports it.
         if (imageCapture) {
             try { blob = await imageCapture.takePhoto(); } catch { blob = null; }
         }
 
-        // Fallback: grab the current video frame.
         if (!blob) {
             const w = video.videoWidth;
             const h = video.videoHeight;
@@ -120,24 +130,8 @@
         attachFile(file);
     }
 
-    // Used for the gallery button, and as a camera fallback on non-secure pages.
-    function pickFile(useCapture) {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
-        if (useCapture) input.setAttribute('capture', 'environment');
-        input.onchange = () => {
-            if (input.files && input.files[0]) attachFile(input.files[0]);
-        };
-        input.click();
-    }
-
     async function openCamera() {
-        if (!navigator.mediaDevices?.getUserMedia) {
-            toastr.warning('Live camera needs HTTPS or localhost. Using the file picker instead.');
-            pickFile(true);
-            return;
-        }
+        if (document.getElementById(OVERLAY_ID)) return;
 
         const circle = 'all:unset;box-sizing:border-box;width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,0.15);color:#fff;font-size:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;';
 
@@ -146,6 +140,8 @@
         overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#000;display:flex;flex-direction:column;';
         overlay.innerHTML = `
             <video playsinline muted style="flex:1;min-height:0;width:100%;object-fit:contain;background:#000;"></video>
+            <button type="button" data-act="files"
+                style="all:unset;position:absolute;top:calc(14px + env(safe-area-inset-top));left:16px;padding:8px 14px;border-radius:18px;background:rgba(0,0,0,0.55);color:#fff;font-size:15px;cursor:pointer;">Files</button>
             <div data-role="zoomwrap" style="display:none;align-items:center;gap:10px;padding:10px 24px;background:#000;color:#fff;">
                 <span>&#8722;</span>
                 <input data-role="zoom" type="range" style="flex:1;">
@@ -164,6 +160,7 @@
         overlay.addEventListener('click', async (e) => {
             const act = e.target?.dataset?.act;
             if (act === 'cancel') closeOverlay();
+            else if (act === 'files') { closeOverlay(); openNormalPicker(); }
             else if (act === 'snap') snap(video);
             else if (act === 'flash') toggleTorch(overlay);
             else if (act === 'flip') {
@@ -177,32 +174,18 @@
         } catch (err) {
             console.error('[st-camera-attach]', err);
             closeOverlay();
-            toastr.error('Camera unavailable or permission denied');
+            toastr.error('Camera unavailable or permission denied. Opening the file picker.');
+            openNormalPicker();
         }
     }
 
-    function addButtons() {
-        if (document.getElementById(CAM_ID)) return;
-        const bar = document.getElementById('leftSendForm');
-        if (!bar) return;
-
-        const cam = document.createElement('div');
-        cam.id = CAM_ID;
-        cam.className = 'fa-solid fa-camera interactable';
-        cam.title = 'Take a photo (not saved to gallery)';
-        cam.tabIndex = 0;
-        cam.addEventListener('click', openCamera);
-
-        const gal = document.createElement('div');
-        gal.id = GAL_ID;
-        gal.className = 'fa-solid fa-image interactable';
-        gal.title = 'Pick from gallery';
-        gal.tabIndex = 0;
-        gal.addEventListener('click', () => pickFile(false));
-
-        bar.appendChild(cam);
-        bar.appendChild(gal);
-    }
-
-    jQuery(() => addButtons());
+    // Intercept the built-in attach: it ends in a click on the hidden file input.
+    document.addEventListener('click', (e) => {
+        if (e.target?.id !== 'file_form_input' || bypass) return;
+        // No secure context means no live camera: let the normal picker open.
+        if (!navigator.mediaDevices?.getUserMedia) return;
+        e.preventDefault();
+        e.stopPropagation();
+        openCamera();
+    }, true);
 })();
