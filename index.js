@@ -6,6 +6,10 @@
 (() => {
     const OVERLAY_ID = 'st_cam_attach_overlay';
 
+    // 'native' = ask the phone to open its own camera app (a copy may be kept by that app).
+    // 'inpage' = SillyTavern's own camera screen (never saved to the gallery).
+    const MODE = 'native';
+
     let stream = null;
     let imageCapture = null;
     let facing = 'environment';
@@ -179,10 +183,36 @@
         }
     }
 
+    // Asks the phone to open its own camera app. The input is attached to the
+    // page and clicked synchronously inside the user's tap, which browsers need.
+    function nativeCapture() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.setAttribute('capture', 'environment');
+        input.capture = 'environment';
+        input.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;';
+        input.addEventListener('change', () => {
+            if (input.files && input.files[0]) attachFile(input.files[0]);
+            input.remove();
+        });
+        input.addEventListener('cancel', () => input.remove());
+        document.body.appendChild(input);
+        input.click();
+    }
+
     // Intercept the built-in attach: it ends in a click on the hidden file input.
     document.addEventListener('click', (e) => {
         if (e.target?.id !== 'file_form_input' || bypass) return;
-        // No secure context means no live camera: let the normal picker open.
+
+        if (MODE === 'native') {
+            e.preventDefault();
+            e.stopPropagation();
+            nativeCapture();
+            return;
+        }
+
+        // In-page camera. No secure context means no live camera: let the normal picker open.
         if (!navigator.mediaDevices?.getUserMedia) return;
         e.preventDefault();
         e.stopPropagation();
